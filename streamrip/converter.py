@@ -83,15 +83,14 @@ class Converter:
 
         process = subprocess.Popen(self.command, stderr=subprocess.PIPE)
         process.wait()
-        if process.returncode == 0 and os.path.isfile(self.tempfile):
-            if self.remove_source:
-                os.remove(self.filename)
-                logger.debug("Source removed: %s", self.filename)
-
-            shutil.move(self.tempfile, self.final_fn)
-            logger.debug("Moved: %s -> %s", self.tempfile, self.final_fn)
-        else:
+        if process.returncode != 0 or not os.path.isfile(self.tempfile):
             raise ConversionError(f"FFmpeg output:\n{process.communicate()[1]}")
+        if self.remove_source:
+            os.remove(self.filename)
+            logger.debug("Source removed: %s", self.filename)
+
+        shutil.move(self.tempfile, self.final_fn)
+        logger.debug("Moved: %s -> %s", self.tempfile, self.final_fn)
 
     def _gen_command(self):
         command = [
@@ -129,7 +128,7 @@ class Converter:
             if isinstance(self.bit_depth, int):
                 if int(self.bit_depth) == 16:
                     command.extend(["-sample_fmt", "s16"])
-                elif int(self.bit_depth) in (24, 32):
+                elif int(self.bit_depth) in {24, 32}:
                     command.extend(["-sample_fmt", "s32p"])
                 else:
                     raise ValueError("Bit depth must be 16, 24, or 32")
@@ -222,10 +221,7 @@ class Vorbis(Converter):
         arg = "qscale:a %d"
         if rate <= 128:
             return arg % (rate / 16 - 4)
-        if rate <= 256:
-            return arg % (rate / 32)
-
-        return arg % (rate / 64 + 4)
+        return arg % (rate / 32) if rate <= 256 else arg % (rate / 64 + 4)
 
 
 class OPUS(Converter):

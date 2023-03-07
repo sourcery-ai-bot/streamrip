@@ -39,10 +39,7 @@ def restore_config():
 
 def download_albums():
     rip_url = ["rip", "-nd", "-u"]
-    procs = []
-    for url in test_urls.values():
-        procs.append(subprocess.run([*rip_url, url]))
-
+    procs = [subprocess.run([*rip_url, url]) for url in test_urls.values()]
     for p in procs:
         echo(p)
 

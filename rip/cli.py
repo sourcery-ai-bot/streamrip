@@ -621,16 +621,15 @@ class ConvertCommand(Command):
             )
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = []
-                for file in audio_files:
-                    futures.append(
-                        executor.submit(
-                            ConverterCls(
-                                filename=os.path.join(dirname, file),
-                                **converter_args,
-                            ).convert
-                        )
+                futures = [
+                    executor.submit(
+                        ConverterCls(
+                            filename=os.path.join(dirname, file),
+                            **converter_args,
+                        ).convert
                     )
+                    for file in audio_files
+                ]
                 from streamrip.utils import TQDM_BAR_FORMAT
 
                 for future in tqdm(
@@ -801,11 +800,7 @@ def clean_options(*opts):
                 opt = opt[1:]
 
             opt = opt.strip()
-            if opt.isdigit():
-                opt = int(opt)
-            else:
-                opt = STRING_TO_PRIMITIVE.get(opt, opt)
-
+            opt = int(opt) if opt.isdigit() else STRING_TO_PRIMITIVE.get(opt, opt)
         yield opt
 
 

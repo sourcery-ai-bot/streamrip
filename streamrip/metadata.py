@@ -292,13 +292,7 @@ class TrackMetadata:
 
     @property
     def title(self) -> Optional[str]:
-        if not hasattr(self, "_title"):
-            return None
-
-        # if self.explicit:
-        #     return f"{self._title} (Explicit)"
-
-        return self._title
+        return self._title if hasattr(self, "_title") else None
 
     @title.setter
     def title(self, new_title):
@@ -338,10 +332,7 @@ class TrackMetadata:
 
         :rtype: str
         """
-        if self._artist is not None:
-            return self._artist
-
-        return None
+        return self._artist if self._artist is not None else None
 
     @artist.setter
     def artist(self, val: str):
@@ -406,9 +397,7 @@ class TrackMetadata:
             if self._copyright is None:
                 return None
             copyright: str = re.sub(r"(?i)\(P\)", PHON_COPYRIGHT, self._copyright)
-            copyright = re.sub(r"(?i)\(C\)", COPYRIGHT, copyright)
-            return copyright
-
+            return re.sub(r"(?i)\(C\)", COPYRIGHT, copyright)
         logger.debug("Accessed copyright tag before setting, returning None")
         return None
 
@@ -492,11 +481,11 @@ class TrackMetadata:
         logger.debug("Excluded tags: %s", exclude)
 
         container = container.lower()
-        if container in ("flac", "vorbis"):
+        if container in {"flac", "vorbis"}:
             return self.__gen_flac_tags(exclude)
-        if container in ("mp3", "id3"):
+        if container in {"mp3", "id3"}:
             return self.__gen_mp3_tags(exclude)
-        if container in ("alac", "m4a", "mp4", "aac"):
+        if container in {"alac", "m4a", "mp4", "aac"}:
             return self.__gen_mp4_tags(exclude)
 
         raise InvalidContainerError(f"Invalid container {container}")
@@ -511,8 +500,7 @@ class TrackMetadata:
             if k in exclude:
                 continue
 
-            tag = getattr(self, k)
-            if tag:
+            if tag := getattr(self, k):
                 if k in {
                     "tracknumber",
                     "discnumber",
@@ -567,12 +555,11 @@ class TrackMetadata:
 
         :rtype: dict
         """
-        ret = {}
-        for attr in dir(self):
-            if not attr.startswith("_") and not callable(getattr(self, attr)):
-                ret[attr] = getattr(self, attr)
-
-        return ret
+        return {
+            attr: getattr(self, attr)
+            for attr in dir(self)
+            if not attr.startswith("_") and not callable(getattr(self, attr))
+        }
 
     def __setitem__(self, key, val):
         """Dict-like access for tags.
@@ -597,11 +584,7 @@ class TrackMetadata:
         """
         if hasattr(self, key):
             res = self.__getitem__(key)
-            if res is not None:
-                return res
-
-            return default
-
+            return res if res is not None else default
         return default
 
     def set(self, key, val) -> str:

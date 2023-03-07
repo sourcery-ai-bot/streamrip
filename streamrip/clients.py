@@ -248,11 +248,11 @@ class QobuzClient(Client):
 
         limit = page.get(key, {}).get("limit", 500)
         offset = page.get(key, {}).get("offset", 0)
-        params.update({"limit": limit})
+        params["limit"] = limit
         yield page
         while (offset + limit) < total:
             offset += limit
-            params.update({"offset": offset})
+            params["offset"] = offset
             page, status_code = self._api_request(epoint, params)
             yield page
 
@@ -295,7 +295,7 @@ class QobuzClient(Client):
         }
 
         if media_type in extras:
-            params.update({"extra": extras[media_type]})
+            params["extra"] = extras[media_type]
 
         logger.debug("request params: %s", params)
 
@@ -325,13 +325,13 @@ class QobuzClient(Client):
         # TODO: move featured, favorites, and playlists into _api_get later
         if media_type == "featured":
             assert query in QOBUZ_FEATURED_KEYS, f'query "{query}" is invalid.'
-            params.update({"type": query})
+            params["type"] = query
             del params["query"]
             epoint = "album/getFeatured"
 
         elif query == "user-favorites":
-            assert query in ("track", "artist", "album")
-            params.update({"type": f"{media_type}s"})
+            assert query in {"track", "artist", "album"}
+            params["type"] = f"{media_type}s"
             epoint = "favorite/getUserFavorites"
 
         elif query == "user-playlists":
@@ -389,7 +389,7 @@ class QobuzClient(Client):
         """
         unix_ts = time.time()
 
-        if int(quality) not in AVAILABLE_QUALITY_IDS:  # Needed?
+        if quality not in AVAILABLE_QUALITY_IDS:  # Needed?
             raise InvalidQuality(
                 f"Invalid quality id {quality}. Choose from {AVAILABLE_QUALITY_IDS}"
             )
@@ -416,7 +416,7 @@ class QobuzClient(Client):
         }
         response, status_code = self._api_request("track/getFileUrl", params)
         if status_code == 400:
-            raise InvalidAppSecretError("Invalid app secret from params %s" % params)
+            raise InvalidAppSecretError(f"Invalid app secret from params {params}")
 
         return response
 
@@ -490,8 +490,7 @@ class DeezerClient(Client):
         except AttributeError:
             raise Exception
 
-        response = search_function(query, limit=limit)
-        return response
+        return search_function(query, limit=limit)
 
     def login(self, **kwargs):
         """Log into Deezer.
@@ -526,7 +525,7 @@ class DeezerClient(Client):
 
         get_item = GET_FUNCTIONS[media_type]
         item = get_item(meta_id)
-        if media_type in ("album", "playlist"):
+        if media_type in {"album", "playlist"}:
             tracks = getattr(self.client.api, f"get_{media_type}_tracks")(
                 meta_id, limit=-1
             )
@@ -594,8 +593,8 @@ class DeezerClient(Client):
             (
                 track_hash.encode(),
                 str(format_number).encode(),
-                str(meta_id).encode(),
-                str(media_version).encode(),
+                meta_id.encode(),
+                media_version.encode(),
             )
         )
         url_hash = hashlib.md5(url_bytes).hexdigest()
@@ -676,7 +675,7 @@ class DeezloaderClient(Client):
         """
         url = f"{DEEZER_BASE}/{media_type}/{meta_id}"
         item = self.session.get(url).json()
-        if media_type in ("album", "playlist"):
+        if media_type in {"album", "playlist"}:
             tracks = self.session.get(f"{url}/tracks", params={"limit": 1000}).json()
             item["tracks"] = tracks["data"]
             item["track_total"] = len(tracks["data"])
@@ -903,11 +902,7 @@ class TidalClient(Client):
         logger.debug(resp)
 
         if resp.get("status", 200) != 200:
-            if resp["status"] == 400 and resp["sub_status"] == 1002:
-                return 2
-            else:
-                return 1
-
+            return 2 if resp["status"] == 400 and resp["sub_status"] == 1002 else 1
         self.user_id = resp["user"]["userId"]
         self.country_code = resp["user"]["countryCode"]
         self.access_token = resp["access_token"]
@@ -1004,7 +999,7 @@ class TidalClient(Client):
         """
         url = f"{media_type}s/{item_id}"
         item = self._api_request(url)
-        if media_type in ("playlist", "album"):
+        if media_type in {"playlist", "album"}:
 
             resp = self._api_request(f"{url}/items")
             if (tracks_left := item["numberOfTracks"]) > 100:
@@ -1084,8 +1079,7 @@ class TidalClient(Client):
         :param data:
         :param auth:
         """
-        r = self.session.post(url, data=data, auth=auth, verify=False).json()
-        return r
+        return self.session.post(url, data=data, auth=auth, verify=False).json()
 
 
 class SoundCloudClient(Client):
@@ -1138,10 +1132,10 @@ class SoundCloudClient(Client):
 
         self.app_version = re.search(
             r'<script>window\.__sc_version="(\d+)"</script>', resp.text
-        ).group(1)
+        )[1]
 
         resp2 = self.session.get(client_id_url)
-        self.client_id = re.search(r'client_id:\s*"(\w+)"', resp2.text).group(1)
+        self.client_id = re.search(r'client_id:\s*"(\w+)"', resp2.text)[1]
 
     def resolve_url(self, url: str) -> dict:
         resp = self._get(f"resolve?url={url}").json()
@@ -1250,12 +1244,8 @@ class SoundCloudClient(Client):
             "app_locale": "en",
         }
         if param_arg is not None:
-            params.update(param_arg)
+            params |= param_arg
 
-        if no_base:
-            url = path
-        else:
-            url = f"{SOUNDCLOUD_BASE}/{path}"
-
+        url = path if no_base else f"{SOUNDCLOUD_BASE}/{path}"
         logger.debug("Fetching url %s with params %s", url, params)
         return self.session.get(url, params=params, headers=headers)

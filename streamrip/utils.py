@@ -112,10 +112,7 @@ def get_quality_id(bit_depth: Optional[int], sampling_rate: Optional[int]):
         return 2
 
     if bit_depth == 24:
-        if sampling_rate <= 96:
-            return 3
-
-        return 4
+        return 3 if sampling_rate <= 96 else 4
 
 
 def get_stats_from_quality(
@@ -180,9 +177,13 @@ def tidal_cover_url(uuid, size):
     assert size in possibles, f"size must be in {possibles}"
 
     # A common occurance is a valid size but no uuid
-    if not uuid:
-        return None
-    return TIDAL_COVER_URL.format(uuid=uuid.replace("-", "/"), height=size, width=size)
+    return (
+        TIDAL_COVER_URL.format(
+            uuid=uuid.replace("-", "/"), height=size, width=size
+        )
+        if uuid
+        else None
+    )
 
 
 def decrypt_mqa_file(in_path, out_path, encryption_key):
@@ -195,7 +196,7 @@ def decrypt_mqa_file(in_path, out_path, encryption_key):
     try:
         from Crypto.Cipher import AES
         from Crypto.Util import Counter
-    except (ImportError, ModuleNotFoundError):
+    except ImportError:
         secho(
             "To download this item in MQA, you need to run ",
             fg="yellow",
@@ -244,10 +245,7 @@ def ext(quality: int, source: str):
     :type source: str
     """
     if quality <= 1:
-        if source == "tidal":
-            return ".m4a"
-        else:
-            return ".mp3"
+        return ".m4a" if source == "tidal" else ".mp3"
     else:
         return ".flac"
 
@@ -300,10 +298,7 @@ def get_container(quality: int, source: str) -> str:
     if quality >= 2:
         return "FLAC"
 
-    if source == "tidal":
-        return "AAC"
-
-    return "MP3"
+    return "AAC" if source == "tidal" else "MP3"
 
 
 def get_cover_urls(resp: dict, source: str) -> dict:
@@ -320,15 +315,6 @@ def get_cover_urls(resp: dict, source: str) -> dict:
         cover_urls = resp["image"]
         cover_urls["original"] = cover_urls["large"].replace("600", "org")
         return cover_urls
-
-    if source == "tidal":
-        uuid = resp["cover"]
-        if not uuid:
-            return None
-        return {
-            sk: tidal_cover_url(uuid, size)
-            for sk, size in zip(COVER_SIZES, (160, 320, 640, 1280))
-        }
 
     if source == "deezer":
         resp_keys = ("cover", "cover_medium", "cover_large", "cover_xl")
@@ -352,7 +338,7 @@ def get_cover_urls(resp: dict, source: str) -> dict:
 
         return cover_urls
 
-    if source == "soundcloud":
+    elif source == "soundcloud":
         cover_url = (resp["artwork_url"] or resp["user"].get("avatar_url")).replace(
             "large", "t500x500"
         )
@@ -361,6 +347,16 @@ def get_cover_urls(resp: dict, source: str) -> dict:
 
         return cover_urls
 
+    elif source == "tidal":
+        uuid = resp["cover"]
+        return (
+            {
+                sk: tidal_cover_url(uuid, size)
+                for sk, size in zip(COVER_SIZES, (160, 320, 640, 1280))
+            }
+            if uuid
+            else None
+        )
     raise InvalidSourceError(source)
 
 

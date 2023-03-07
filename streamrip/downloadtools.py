@@ -57,7 +57,7 @@ class DownloadStream:
 
         self.id = item_id
         if isinstance(self.id, int):
-            self.id = str(self.id)
+            self.id = self.id
 
         if params is None:
             params = {}

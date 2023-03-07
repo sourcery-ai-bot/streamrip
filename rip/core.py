@@ -107,11 +107,7 @@ class RipCore(list):
         :type config: Optional[Config]
         """
         self.config: Config
-        if config is None:
-            self.config = Config(CONFIG_PATH)
-        else:
-            self.config = config
-
+        self.config = Config(CONFIG_PATH) if config is None else config
         if (theme := self.config.file["theme"]["progress_bar"]) != TQDM_DEFAULT_THEME:
             set_progress_bar_theme(theme.lower())
 
@@ -194,9 +190,8 @@ class RipCore(list):
         """
         client = self.get_client(source)
 
-        if media_type not in MEDIA_TYPES:
-            if "playlist" in media_type:  # for SoundCloud
-                media_type = "playlist"
+        if media_type not in MEDIA_TYPES and "playlist" in media_type:
+            media_type = "playlist"
 
         assert media_type in MEDIA_TYPES, media_type
         item = MEDIA_CLASS[media_type](client=client, id=item_id)
@@ -437,8 +432,7 @@ class RipCore(list):
         """
         parsed: List[Tuple[str, str, str]] = []
 
-        interpreter_urls = QOBUZ_INTERPRETER_URL_REGEX.findall(url)
-        if interpreter_urls:
+        if interpreter_urls := QOBUZ_INTERPRETER_URL_REGEX.findall(url):
             secho(
                 "Extracting IDs from Qobuz interpreter urls. Use urls "
                 "that include the artist ID for faster preprocessing.",
@@ -450,8 +444,7 @@ class RipCore(list):
             )
             url = QOBUZ_INTERPRETER_URL_REGEX.sub("", url)
 
-        dynamic_urls = DEEZER_DYNAMIC_LINK_REGEX.findall(url)
-        if dynamic_urls:
+        if dynamic_urls := DEEZER_DYNAMIC_LINK_REGEX.findall(url):
             secho(
                 "Extracting IDs from Deezer dynamic link. Use urls "
                 "of the form https://www.deezer.com/{country}/{type}/{id} for "
@@ -463,9 +456,7 @@ class RipCore(list):
             )
 
         parsed.extend(URL_REGEX.findall(url))  # Qobuz, Tidal, Deezer
-        soundcloud_urls = SOUNDCLOUD_URL_REGEX.findall(url)
-
-        if soundcloud_urls:
+        if soundcloud_urls := SOUNDCLOUD_URL_REGEX.findall(url):
             soundcloud_client = self.get_client("soundcloud")
             assert isinstance(soundcloud_client, SoundCloudClient)  # for typing
 
@@ -577,7 +568,7 @@ class RipCore(list):
             pl = Playlist(client=self.get_client(lastfm_source), name=title)
             creator_match = user_regex.search(purl)
             if creator_match is not None:
-                pl.creator = creator_match.group(1)
+                pl.creator = creator_match[1]
 
             tracks_not_found = 0
             with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
@@ -711,8 +702,7 @@ class RipCore(list):
             raise NotImplementedError
 
         fields = (fname for _, fname, _, _ in Formatter().parse(fmt) if fname)
-        ret = fmt.format(**{k: media.get(k, default="Unknown") for k in fields})
-        return ret
+        return fmt.format(**{k: media.get(k, default="Unknown") for k in fields})
 
     def interactive_search(
         self,
@@ -793,13 +783,12 @@ class RipCore(list):
             choice = menu.show()
             if choice is None:
                 return False
-            else:
-                if isinstance(choice, int):
-                    self.append(results[choice])
-                elif isinstance(choice, tuple):
-                    for i in choice:
-                        self.append(results[i])
-                return True
+            if isinstance(choice, int):
+                self.append(results[choice])
+            elif isinstance(choice, tuple):
+                for i in choice:
+                    self.append(results[i])
+            return True
 
     def get_lastfm_playlist(self, url: str) -> Tuple[str, list]:
         """From a last.fm url, find the playlist title and tracks.
@@ -835,7 +824,7 @@ class RipCore(list):
         if remaining_tracks_match is None:
             raise ParsingError("Error parsing lastfm page: %s", r.text)
 
-        total_tracks = int(remaining_tracks_match.group(1))
+        total_tracks = int(remaining_tracks_match[1])
         logger.debug("Total tracks: %d", total_tracks)
         remaining_tracks = total_tracks - 50
 
@@ -846,7 +835,7 @@ class RipCore(list):
         if playlist_title_match is None:
             raise ParsingError("Error finding title from response")
 
-        playlist_title = html.unescape(playlist_title_match.group(1))
+        playlist_title = html.unescape(playlist_title_match[1])
 
         if remaining_tracks > 0:
             with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:

@@ -37,8 +37,8 @@ class Spoofer:
             login_page,
         )
         assert bundle_url_match is not None
-        bundle_url = bundle_url_match.group(1)
-        bundle_req = requests.get("https://play.qobuz.com" + bundle_url)
+        bundle_url = bundle_url_match[1]
+        bundle_req = requests.get(f"https://play.qobuz.com{bundle_url}")
         self.bundle = bundle_req.text
 
     def get_app_id(self) -> str:
@@ -48,7 +48,7 @@ class Spoofer:
         """
         match = re.search(self.app_id_regex, self.bundle)
         if match is not None:
-            return str(match.group("app_id"))
+            return str(match["app_id"])
 
         raise Exception("Could not find app id.")
 

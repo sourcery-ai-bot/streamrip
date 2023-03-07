@@ -18,8 +18,7 @@ def extract_interpreter_url(url: str) -> str:
     """
     session = gen_threadsafe_session({"User-Agent": AGENT})
     r = session.get(url)
-    match = interpreter_artist_regex.search(r.text)
-    if match:
+    if match := interpreter_artist_regex.search(r.text):
         return match.group(1)
 
     raise Exception(
@@ -42,8 +41,7 @@ def extract_deezer_dynamic_link(url: str) -> Tuple[str, str]:
     """
     session = gen_threadsafe_session({"User-Agent": AGENT})
     r = session.get(url)
-    match = deezer_id_link_regex.search(r.text)
-    if match:
+    if match := deezer_id_link_regex.search(r.text):
         return match.group(1), match.group(2)
 
     raise Exception("Unable to extract Deezer dynamic link.")

@@ -282,7 +282,7 @@ class Track(Media):
         :param progress_bar: turn on/off progress bar
         :type progress_bar: bool
         """
-        if not self.part_of_tracklist and not self.client.source == "soundcloud":
+        if not self.part_of_tracklist and self.client.source != "soundcloud":
             secho(f"Downloading {self!s}\n", bold=True)
 
         self._prepare_download(
@@ -292,12 +292,7 @@ class Track(Media):
             **kwargs,
         )
 
-        if self.client.source == "soundcloud":
-            # soundcloud client needs whole dict to get file url
-            url_id = self.resp
-        else:
-            url_id = self.id
-
+        url_id = self.resp if self.client.source == "soundcloud" else self.id
         try:
             dl_info = self.client.get_file_url(url_id, self.quality)
         except Exception as e:
@@ -320,9 +315,7 @@ class Track(Media):
                 if restrictions := dl_info["restrictions"]:
                     # Turn CamelCase code into a readable sentence
                     words = re.findall(r"([A-Z][a-z]+)", restrictions[0]["code"])
-                    raise NonStreamable(
-                        words[0] + " " + " ".join(map(str.lower, words[1:])) + "."
-                    )
+                    raise NonStreamable(f"{words[0]} " + " ".join(map(str.lower, words[1:])) + ".")
 
                 secho(f"Panic: {e} dl_info = {dl_info}", fg="red")
                 raise NonStreamable
@@ -629,25 +622,24 @@ class Track(Media):
                     audio = ID3(self.path)
                 except ID3NoHeaderError:
                     audio = ID3()
-        else:
-            if self.quality in (2, 3, 4):
-                self.container = "FLAC"
-                logger.debug("Tagging file with %s container", self.container)
-                audio = FLAC(self.path)
-            elif self.quality <= 1:
-                if self.client.source == "tidal":
-                    self.container = "AAC"
-                    audio = MP4(self.path)
-                else:
-                    self.container = "MP3"
-                    try:
-                        audio = ID3(self.path)
-                    except ID3NoHeaderError:
-                        audio = ID3()
-
-                logger.debug("Tagging file with %s container", self.container)
+        elif self.quality in (2, 3, 4):
+            self.container = "FLAC"
+            logger.debug("Tagging file with %s container", self.container)
+            audio = FLAC(self.path)
+        elif self.quality <= 1:
+            if self.client.source == "tidal":
+                self.container = "AAC"
+                audio = MP4(self.path)
             else:
-                raise InvalidQuality(f'Invalid quality: "{self.quality}"')
+                self.container = "MP3"
+                try:
+                    audio = ID3(self.path)
+                except ID3NoHeaderError:
+                    audio = ID3()
+
+            logger.debug("Tagging file with %s container", self.container)
+        else:
+            raise InvalidQuality(f'Invalid quality: "{self.quality}"')
 
         # automatically generate key, value pairs based on container
         tags = self.meta.tags(
@@ -1177,14 +1169,14 @@ class Tracklist(list):
         if kwargs.get("concurrent_downloads", True):
             echo()  # To separate cover progress bars and the rest
             with concurrent.futures.ThreadPoolExecutor(
-                kwargs.get("max_connections", 3)
-            ) as executor:
+                        kwargs.get("max_connections", 3)
+                    ) as executor:
                 future_map = {
                     executor.submit(target, item, **kwargs): item for item in self
                 }
                 try:
                     concurrent.futures.wait(future_map.keys())
-                    for future in future_map.keys():
+                    for future in future_map:
                         try:
                             future.result()
                         except NonStreamable as e:
@@ -1235,7 +1227,7 @@ class Tracklist(list):
         """
         raise NotImplementedError
 
-    def _prepare_download(**kwargs):
+    def _prepare_download(self):
         """Abstract method.
 
         :param kwargs:
@@ -1251,16 +1243,9 @@ class Tracklist(list):
         :param default:
         """
         if isinstance(key, str):
-            if hasattr(self, key):
-                return getattr(self, key)
-
-            return default
-
+            return getattr(self, key) if hasattr(self, key) else default
         if isinstance(key, int):
-            if 0 <= key < len(self):
-                return self[key]
-
-            return default
+            return self[key] if 0 <= key < len(self) else default
 
     def set(self, key, val):
         """For consistency with `Tracklist.get`.
@@ -1329,7 +1314,7 @@ class Tracklist(list):
             cover = Picture
         elif container == "MP3":
             cover = APIC
-        elif container in ("AAC", "ALAC", "MP4"):
+        elif container in {"AAC", "ALAC", "MP4"}:
             cover = MP4Cover
         else:
             raise Exception(container)
@@ -1376,8 +1361,7 @@ class Tracklist(list):
         Used to group two albums that may be named similarly, but not exactly
         the same.
         """
-        match = Tracklist.essence_regex.match(album)
-        if match:
+        if match := Tracklist.essence_regex.match(album):
             return match.group(1).strip().lower()
 
         return album
@@ -1651,12 +1635,7 @@ class Album(Tracklist, Media):
             fmt["sampling_rate"] = stats[1]
 
         if sr := fmt.get("sampling_rate"):
-            if sr % 1000 == 0:
-                # truncate the decimal .0 when converting to str
-                fmt["sampling_rate"] = int(sr / 1000)
-            else:
-                fmt["sampling_rate"] = sr / 1000
-
+            fmt["sampling_rate"] = int(sr / 1000) if sr % 1000 == 0 else sr / 1000
         logger.debug("Formatter: %s", fmt)
         return fmt
 
@@ -2016,11 +1995,7 @@ class Artist(Tracklist, Media):
             self.name = self.meta["name"]
             albums = self.meta["albums"]["items"]
 
-        elif self.client.source == "tidal":
-            self.name = self.meta["name"]
-            albums = self.meta["albums"]
-
-        elif self.client.source == "deezer":
+        elif self.client.source in ["tidal", "deezer"]:
             self.name = self.meta["name"]
             albums = self.meta["albums"]
 
@@ -2300,7 +2275,7 @@ def _get_tracklist(resp: dict, source: str) -> list:
     """
     if source == "qobuz":
         return resp["tracks"]["items"]
-    if source in ("tidal", "deezer"):
+    if source in {"tidal", "deezer"}:
         return resp["tracks"]
 
     raise NotImplementedError(source)

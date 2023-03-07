@@ -48,11 +48,7 @@ class Config:
         self.file: Dict[str, Any] = copy.deepcopy(self.defaults)
         self.session: Dict[str, Any] = copy.deepcopy(self.defaults)
 
-        if path is None:
-            self._path = CONFIG_PATH
-        else:
-            self._path = path
-
+        self._path = CONFIG_PATH if path is None else path
         if os.path.isfile(self._path):
             self.load()
             if self.file["misc"]["version"] != self.defaults["misc"]["version"]:
@@ -135,11 +131,7 @@ class Config:
         with open(self._path) as cfg:
             for k, v in tomlkit.loads(cfg.read().strip()).items():
                 self.file[k] = v
-                if hasattr(v, "copy"):
-                    self.session[k] = v.copy()
-                else:
-                    self.session[k] = v
-
+                self.session[k] = v.copy() if hasattr(v, "copy") else v
         logger.debug("Config loaded")
 
     def dump(self, info):
